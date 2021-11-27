@@ -1,12 +1,15 @@
 package com.itmk.web.user.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.itmk.utils.ResultUtils;
 import com.itmk.utils.ResultVo;
 import com.itmk.web.user.entity.User;
 import com.itmk.web.user.entity.UserParm;
 import com.itmk.web.user.service.UserService;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -25,6 +28,20 @@ public class UserController {
      */
     @PostMapping
     public ResultVo addUser(@RequestBody User user){
+        //判断登录名 的唯一性
+        if (StringUtils.isNotEmpty(user.getLoginName())) {
+            QueryWrapper<User> query = new QueryWrapper<>();
+            query.lambda().eq(User::getLoginName, user.getLoginName());
+            User one = userService.getOne(query);
+            if (one != null) {
+                return ResultUtils.error("登录名已经被占用!", 500);
+            }
+        }
+        //如果密码存在，MD5加密
+        if (StringUtils.isNotEmpty(user.getPassword())) {
+            user.setPassword(DigestUtils.md5DigestAsHex(user.getPassword().getBytes()));
+        }
+
         boolean save = userService.save(user);
         if(save){
             return ResultUtils.success("新增用户成功");
@@ -46,13 +63,26 @@ public class UserController {
         return ResultUtils.error("编辑用户失败");
     }
 
+//    /**
+//     * 删除用户
+//     * @param userId
+//     * @return
+//     */
+//    @DeleteMapping
+//    public ResultVo deleteUser(@RequestParam("userId") Long userId){
+//        boolean b = userService.removeById(userId);
+//        if(b){
+//            return ResultUtils.success("删除用户成功");
+//        }
+//        return ResultUtils.error("删除用户失败");
+//    }
     /**
-     * 删除用户
+     * 删除员工
      * @param userId
      * @return
      */
-    @DeleteMapping
-    public ResultVo deleteUser(@RequestParam("userId") Long userId){
+    @DeleteMapping("/{userId}")
+    public ResultVo deleteUser(@PathVariable("userId") Long userId){
         boolean b = userService.removeById(userId);
         if(b){
             return ResultUtils.success("删除用户成功");
@@ -68,6 +98,8 @@ public class UserController {
     @GetMapping("/list")
     public ResultVo list(UserParm parm){
         IPage<User> list = userService.list(parm);
+        //前端不展示密码
+        list.getRecords().stream().forEach(item -> item.setPassword(""));
         return ResultUtils.success("查询成功",list);
     }
 }
