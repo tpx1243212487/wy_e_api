@@ -2,10 +2,10 @@ package com.itmk.web.user.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.itmk.config.jwt.JwtUtils;
 import com.itmk.utils.ResultUtils;
 import com.itmk.utils.ResultVo;
-import com.itmk.web.user.entity.User;
-import com.itmk.web.user.entity.UserParm;
+import com.itmk.web.user.entity.*;
 import com.itmk.web.user.service.UserService;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +20,52 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    /**
+     * 获取用户信息
+     */
+    @GetMapping("/getInfo")
+    public ResultVo getInfo(User user){
+        User user1 = userService.getById(user.getUserId());
+        UserInfo userInfo = new UserInfo();
+        userInfo.setId(user1.getUserId());
+        userInfo.setName(user1.getUsername());
+        userInfo.setAvatar("https://wpimg.wallstcn.com/f778738c-e4f8-4870-b634-56703b4acafe.gif");
+        return ResultUtils.success("获取用户信息成功",userInfo);
+    }
+
+    /**
+     *  用户登录
+     * @param parm
+     * @return
+     */
+    @PostMapping("/login")
+    public ResultVo login(@RequestBody LoginParm parm){
+        if(StringUtils.isEmpty(parm.getUsername()) || StringUtils.isEmpty(parm.getPassword()) || StringUtils.isEmpty(parm.getUserType())){
+            return ResultUtils.error("用户名、密码或用户类型不能为空!");
+        }
+        //查询用户信息
+        String password = DigestUtils.md5DigestAsHex(parm.getPassword().getBytes());
+        QueryWrapper<User> query = new QueryWrapper<>();
+        query.lambda().eq(User::getUsername,parm.getUsername())
+                .eq(User::getPassword,password);
+        User one = userService.getOne(query);
+        if(one == null){
+            return ResultUtils.error("用户名、密码或用户类型错误!");
+        }
+        //如果用户存在，生成token返回给前端
+        String token = jwtUtils.generateToken(one.getUsername());
+        //获取生成的token的过期时间
+        Long expireTime =  jwtUtils.getExpireTime(token,jwtUtils.getSecret());
+        LoginResult result = new LoginResult();
+        result.setUserId(one.getUserId());
+        result.setToken(token);
+        result.setExpireTime(expireTime);
+        return ResultUtils.success("登录成功",result);
+    }
 
     /**
      * 新增用户
